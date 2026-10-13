@@ -31,10 +31,17 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          day_start=$(TZ=Asia/Shanghai date -d "today 00:00" -u +%Y-%m-%dT%H:%M:%SZ)
+          # 注意：run 步骤默认 set -e，因此查询失败时必须兜底为 0（fail-open），
+          # 否则 guard 一失败就会中断整个 job，导致当天反而漏签。
+          day_start=$(TZ=Asia/Shanghai date -d "today 00:00" -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "")
+          if [ -z "$day_start" ]; then
+            echo "无法计算今日起点，为安全起见继续签到"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           count=$(gh run list --workflow tieba.yml --status success --limit 100 \
-            --json createdAt --jq "[.[] | select(.createdAt >= \"$day_start\")] | length")
-          count=${count:-0}
+            --json createdAt --jq "[.[] | select(.createdAt >= \"$day_start\")] | length" 2>/dev/null || echo 0)
+          case "$count" in ''|*[!0-9]*) count=0 ;; esac
           echo "今日起点(UTC): $day_start"
           echo "今日已成功运行: $count 次"
           if [ "$count" -gt 0 ]; then
