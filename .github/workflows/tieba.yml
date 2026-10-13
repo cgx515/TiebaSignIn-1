@@ -2,13 +2,18 @@ name: Daily Tieba Sign-In
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: '强制签到（忽略当天已成功的记录）'
+        type: boolean
+        default: false
   schedule:
-    # 北京时间 06:13 主运行，09:13 / 12:13 补跑。
-    # GitHub 的 schedule 在高负载时会延迟甚至丢弃任务（官方文档明确说明），
-    # 多次触发可兜底；当天若已有成功运行，后续运行会被 guard 步骤自动跳过。
-    - cron: '13 22 * * *'
+    # 主触发：外部 cron 服务每天北京时间 06:30 调用 workflow_dispatch（准点）。
+    # 以下为兜底补跑：若主触发失败或被丢弃，则在北京 09:13 / 12:13 / 15:13 重试。
+    # 当天若已有成功运行，guard 会自动跳过，避免重复签到与重复推送。
     - cron: '13 1 * * *'
     - cron: '13 4 * * *'
+    - cron: '13 7 * * *'
 
 jobs:
   signin:
@@ -26,8 +31,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ "${{ github.event_name }}" != "schedule" ]; then
-            echo "手动触发，直接执行"
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "强制模式，忽略当天记录，直接执行"
             echo "skip=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -45,7 +50,7 @@ jobs:
           echo "今日起点(UTC): $day_start"
           echo "今日已成功运行: $count 次"
           if [ "$count" -gt 0 ]; then
-            echo "今天已签到成功，跳过本次补跑"
+            echo "今天已签到成功，跳过本次运行"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
