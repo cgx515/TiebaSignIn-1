@@ -22,8 +22,17 @@ permissions:
 
 jobs:
   signin:
+    name: 签到（${{ matrix.account.name }}）
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        account:
+          - name: 账号1
+            secret: BDUSS
+          - name: 账号2
+            secret: BDUSS_2
     permissions:
       actions: read
       contents: read
@@ -71,12 +80,13 @@ jobs:
       - name: Run sign-in and verify result
         if: steps.guard.outputs.skip != 'true'
         env:
-          BDUSS: ${{ secrets.BDUSS }}
+          BDUSS: ${{ secrets[matrix.account.secret] }}
+          ACCOUNT_SECRET: ${{ matrix.account.secret }}
           WECHAT_WEBHOOK_KEY: ${{ secrets.WECHAT_WEBHOOK_KEY }}
         shell: bash
         run: |
           if [ -z "$BDUSS" ]; then
-            echo "::error::请先在 Settings → Secrets and variables → Actions 添加 BDUSS。"
+            echo "::error::请先在 Settings → Secrets and variables → Actions 添加 $ACCOUNT_SECRET。"
             exit 1
           fi
           set -o pipefail
